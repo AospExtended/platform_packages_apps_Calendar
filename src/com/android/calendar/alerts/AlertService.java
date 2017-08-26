@@ -224,19 +224,8 @@ public class AlertService extends Service {
             // syncId for event.
             GlobalDismissManager.syncSenderDismissCache(this);
             updateAlertNotification(this);
-        } else if (action.equals(Intent.ACTION_BOOT_COMPLETED)) {
-            // The provider usually initiates this setting up of alarms on startup,
-            // but there was a bug (b/7221716) where a race condition caused this step to be
-            // skipped, resulting in missed alarms.  This is a stopgap to minimize this bug
-            // for devices that don't have the provider fix, by initiating this a 2nd time here.
-            // However, it would still theoretically be possible to hit the race condition
-            // the 2nd time and still miss alarms.
-            //
-            // TODO: Remove this when the provider fix is rolled out everywhere.
-            Intent intent = new Intent();
-            intent.setClass(this, InitAlarmsService.class);
-            startService(intent);
-        } else if (action.equals(Intent.ACTION_TIME_CHANGED)) {
+        } else if (action.equals(Intent.ACTION_TIME_CHANGED) ||
+                action.equals(Intent.TIMEZONE_CHANGED)) {
             doTimeChanged();
         } else if (action.equals(AlertReceiver.ACTION_DISMISS_OLD_REMINDERS)) {
             dismissOldAlerts(this);
@@ -1112,10 +1101,21 @@ public class AlertService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
+            Notification notification = (new Notification.Builder(this)).
+                setContentTitle(getString(R.string.no_title_label)).
+                setSmallIcon(R.drawable.stat_notify_calendar).
+                setShowWhen(false).
+                build();
+            startForeground(1, notification);
+
             Message msg = mServiceHandler.obtainMessage();
             msg.arg1 = startId;
             msg.obj = intent.getExtras();
             mServiceHandler.sendMessage(msg);
+            }
+        } else {
+            Log.e(TAG, "Blocked onStartCommand because of missing permissions");
+            return START_NOT_STICKY;
         }
         return START_REDELIVER_INTENT;
     }
